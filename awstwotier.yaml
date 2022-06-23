@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Sample-Template"
+Resources:
+  ServerOne:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: "ami-0cff7528ff583bf9a"
+      InstanceType: t2.micro
+      KeyName: test-key
+      SubnetId: subnet-00772c47781e31d03
+      SecurityGroupIds:
+        - !GetAtt WebSG.GroupId
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo su -
+          yum install -y httpd
+          sleep 5
+          cd /var/www/html/
+          touch index.html
+          echo 'It Works from Apache' >>/var/www/html/index.html
+          service httpd restart
+
+  Servertwo:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: "ami-0cff7528ff583bf9a"
+      InstanceType: t2.micro
+      KeyName: test-key
+      SubnetId: subnet-00772c47781e31d03
+      SecurityGroupIds:
+        - !GetAtt WebSG.GroupId
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo su -
+          yum install -y httpd
+          sleep 5
+          cd /var/www/html/
+          touch index.html
+          echo 'It Works from Apache' >>/var/www/html/index.html
+          service httpd restart
+
+  WebSG:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Web-Server-Group
+      VpcId: vpc-04974a3fe62bb63a0
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !GetAtt ALBSG.GroupId
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+        - SourceSecurityGroupId: !GetAtt ALBSG.GroupId
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+
+  ALBSG:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: ALB-Server-Group
+      VpcId: vpc-04974a3fe62bb63a0
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+
+  DBSG:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: DB-Server-Group
+      VpcId: vpc-04974a3fe62bb63a0
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !GetAtt WebSG.GroupId
+          IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+
+  AppLB:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Name: Applicaton-load-balancer
+      Subnets:
+        - subnet-079a61863d9ae3c52
+        - subnet-0155dd275b73d0f6b
+      Type: application
+      SecurityGroups:
+        - !GetAtt ALBSG.GroupId
+
+  TargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      Name: Web-Target-Group
+      TargetType: instance
+      Targets:
+        - Id: !Ref ServerOne
+          Port: 80
+        - Id: !Ref Servertwo
+          Port: 80
+      Protocol: HTTP
+      Port: 80
+      VpcId: vpc-04974a3fe62bb63a0
+
+  AlbListner:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+      LoadBalancerArn: !Ref AppLB
+      Port: 80
+      Protocol: HTTP
+
+  RDSDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 100
+      DBInstanceClass: db.t2.micro
+      DBName: SampleTest
+      DBSubnetGroupName: sample
+      Engine: mysql
+      EngineVersion: 8.0
+      MasterUsername: admin
+      MasterUserPassword: admin54321
+      PubliclyAccessible: true
+      StorageType: gp2
+      VPCSecurityGroups:
+        - !Ref DBSG
