@@ -1,4 +1,4 @@
-# Palmetto-State-Armory-Infrastructure-Assessment
+
 This template creates the aws 2 tier architecture.
 We have provided all the required properties values in template before you provision it.
 Few of the properties are hardcoded due to time constraints like vpc id image id and subnet id.
